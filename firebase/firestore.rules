@@ -1,0 +1,374 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isSeller() {
+      return signedIn() && userRole() == 'seller';
+    }
+
+    function ownsProduct() {
+      return signedIn() && resource.data.sellerId == request.auth.uid;
+    }
+
+    function validProductStatus(status) {
+      return status in ['draft', 'active', 'archived'];
+    }
+
+    function validSellerOrderStatus(status) {
+      return status in ['new', 'preparing', 'shipped', 'completed', 'issue'];
+    }
+
+    function validReturnRequestStatus(status) {
+      return status in ['requested', 'approved', 'rejected', 'received', 'refunded-mock'];
+    }
+
+    function validSearchEventType(eventType) {
+      return eventType in [
+        'catalog_search_submitted',
+        'catalog_search_results_loaded',
+        'catalog_search_zero_results',
+        'chat_follow_up_requested',
+        'server_catalog_search_executed',
+        'server_chat_recommend_executed',
+        'server_search_zero_results',
+        'server_search_fallback_used',
+        'search_result_product_opened',
+        'search_result_add_to_cart',
+        'search_result_try_on_opened',
+        'search_result_purchase_completed',
+      ];
+    }
+
+    function validSellerRewardCampaignType(type) {
+      return type in [
+        'purchase_reward',
+        'review_reward',
+        'fit_feedback_reward',
+        'store_promo',
+        'sponsored_try_on',
+      ];
+    }
+
+    function validSellerRewardCampaignOptions() {
+      return (!('startsAt' in request.resource.data) || request.resource.data.startsAt is string) &&
+        (!('endsAt' in request.resource.data) || request.resource.data.endsAt is string) &&
+        (!('minOrderAmount' in request.resource.data) ||
+          (request.resource.data.minOrderAmount is number && request.resource.data.minOrderAmount >= 0)) &&
+        (!('productIds' in request.resource.data) || request.resource.data.productIds is list) &&
+        (!('categoryFilter' in request.resource.data) || request.resource.data.categoryFilter is list);
+    }
+
+    function validProductShape() {
+      return request.resource.data.keys().hasAll([
+        'sellerId',
+        'status',
+        'title',
+        'price',
+        'stock',
+        'imageUrl',
+        'category',
+        'sizes',
+        'createdAt',
+        'updatedAt',
+      ]) &&
+        request.resource.data.sellerId is string &&
+        request.resource.data.sellerId == request.auth.uid &&
+        validProductStatus(request.resource.data.status) &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.price is number &&
+        request.resource.data.price >= 0 &&
+        request.resource.data.stock is number &&
+        request.resource.data.stock >= 0 &&
+        request.resource.data.imageUrl is string &&
+        request.resource.data.imageUrl.size() > 0 &&
+        request.resource.data.category is string &&
+        request.resource.data.sizes is list &&
+        request.resource.data.sizes.size() > 0 &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.updatedAt is string &&
+        (!('visibilityScore' in request.resource.data) ||
+          (request.resource.data.visibilityScore is number &&
+            request.resource.data.visibilityScore >= 0 &&
+            request.resource.data.visibilityScore <= 100)) &&
+        (!('sellerReliability' in request.resource.data) ||
+          (request.resource.data.sellerReliability is number &&
+            request.resource.data.sellerReliability >= 0 &&
+            request.resource.data.sellerReliability <= 100));
+    }
+
+    function immutableProductOwner() {
+      return request.resource.data.sellerId == resource.data.sellerId;
+    }
+
+    function validBuyerOrderCreate(uid) {
+      return request.resource.data.buyerId == uid &&
+        request.resource.data.items is list &&
+        request.resource.data.items.size() > 0 &&
+        request.resource.data.subtotal is number &&
+        request.resource.data.subtotal >= 0 &&
+        request.resource.data.shipping is number &&
+        request.resource.data.shipping >= 0 &&
+        request.resource.data.total is number &&
+        request.resource.data.total >= request.resource.data.subtotal &&
+        request.resource.data.addressLabel is string &&
+        request.resource.data.addressLabel.size() > 0 &&
+        request.resource.data.paymentLabel is string &&
+        request.resource.data.paymentLabel.size() > 0 &&
+        request.resource.data.deliveryOptionId is string &&
+        request.resource.data.deliveryLabel is string &&
+        request.resource.data.deliveryEta is string &&
+        request.resource.data.sellerOrderIds is list &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.updatedAt is string;
+    }
+
+    function validSellerOrderCreate(uid) {
+      return request.resource.data.sellerId == uid &&
+        request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.buyerOrderId is string &&
+        request.resource.data.items is list &&
+        request.resource.data.items.size() > 0 &&
+        request.resource.data.subtotal is number &&
+        request.resource.data.subtotal >= 0 &&
+        request.resource.data.shipping is number &&
+        request.resource.data.shipping >= 0 &&
+        request.resource.data.total is number &&
+        request.resource.data.total >= request.resource.data.subtotal &&
+        request.resource.data.status == 'new' &&
+        request.resource.data.addressLabel is string &&
+        request.resource.data.paymentLabel is string &&
+        request.resource.data.statusHistory is list &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.updatedAt is string;
+    }
+
+    function validSellerOrderUpdate(uid) {
+      return isOwner(uid) &&
+        isSeller() &&
+        resource.data.sellerId == uid &&
+        request.resource.data.sellerId == resource.data.sellerId &&
+        request.resource.data.buyerId == resource.data.buyerId &&
+        request.resource.data.buyerOrderId == resource.data.buyerOrderId &&
+        request.resource.data.items == resource.data.items &&
+        request.resource.data.subtotal == resource.data.subtotal &&
+        request.resource.data.shipping == resource.data.shipping &&
+        request.resource.data.total == resource.data.total &&
+        request.resource.data.addressLabel == resource.data.addressLabel &&
+        request.resource.data.paymentLabel == resource.data.paymentLabel &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        validSellerOrderStatus(request.resource.data.status) &&
+        request.resource.data.updatedAt is string &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'updatedAt',
+          'statusHistory',
+          'carrierLabel',
+          'trackingNumber',
+        ]);
+    }
+
+    function validReturnRequestCreate(uid) {
+      return request.resource.data.buyerId == uid &&
+        request.resource.data.sellerId is string &&
+        request.resource.data.sellerOrderId is string &&
+        request.resource.data.buyerOrderId is string &&
+        request.resource.data.productId is string &&
+        request.resource.data.productTitle is string &&
+        request.resource.data.size is string &&
+        request.resource.data.quantity is number &&
+        request.resource.data.quantity > 0 &&
+        request.resource.data.reason is string &&
+        request.resource.data.reason.size() > 0 &&
+        request.resource.data.status == 'requested' &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.updatedAt is string;
+    }
+
+    function validSellerReturnUpdate() {
+      return signedIn() &&
+        isSeller() &&
+        resource.data.sellerId == request.auth.uid &&
+        request.resource.data.sellerId == resource.data.sellerId &&
+        request.resource.data.buyerId == resource.data.buyerId &&
+        request.resource.data.buyerOrderId == resource.data.buyerOrderId &&
+        request.resource.data.sellerOrderId == resource.data.sellerOrderId &&
+        request.resource.data.productId == resource.data.productId &&
+        request.resource.data.quantity == resource.data.quantity &&
+        validReturnRequestStatus(request.resource.data.status) &&
+        request.resource.data.updatedAt is string &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'decisionNote',
+          'updatedAt',
+        ]);
+    }
+
+    function validSearchEventCreate() {
+      return request.resource.data.keys().hasAll([
+        'id',
+        'userId',
+        'sessionId',
+        'source',
+        'eventType',
+        'createdAt',
+      ]) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.id is string &&
+        request.resource.data.sessionId is string &&
+        request.resource.data.source in ['catalog', 'chat'] &&
+        validSearchEventType(request.resource.data.eventType) &&
+        request.resource.data.createdAt is string &&
+        (!('origin' in request.resource.data) ||
+          request.resource.data.origin in ['client', 'server']) &&
+        (!('query' in request.resource.data) || request.resource.data.query is string) &&
+        (!('searchId' in request.resource.data) || request.resource.data.searchId is string) &&
+        (!('productId' in request.resource.data) || request.resource.data.productId is string) &&
+        (!('resultCount' in request.resource.data) ||
+          (request.resource.data.resultCount is number && request.resource.data.resultCount >= 0)) &&
+        (!('resultIds' in request.resource.data) || request.resource.data.resultIds is list) &&
+        (!('durationMs' in request.resource.data) ||
+          (request.resource.data.durationMs is number && request.resource.data.durationMs >= 0));
+    }
+
+    match /users/{uid} {
+      allow read, update: if isOwner(uid);
+      allow create: if isOwner(uid);
+    }
+
+    match /products/{productId} {
+      allow read: if resource.data.status == 'active' || ownsProduct();
+      allow create: if false;
+      allow update: if isSeller() &&
+        resource.data.sellerId == request.auth.uid &&
+        immutableProductOwner() &&
+        validProductShape();
+      allow delete: if isSeller() &&
+        resource.data.sellerId == request.auth.uid &&
+        resource.data.status == 'archived';
+
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create, update, delete: if false;
+      }
+
+      match /fitFeedback/{feedbackId} {
+        allow read: if true;
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /sellerDrafts/{uid}/drafts/{draftId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /sellerStores/{uid} {
+      allow read: if true;
+      allow write: if isOwner(uid) && isSeller();
+    }
+
+    match /sellerRewardCampaigns/{sellerId}/items/{campaignId} {
+      allow read: if resource.data.status == 'active' ||
+        (signedIn() && isSeller() && request.auth.uid == sellerId);
+      allow create: if signedIn() &&
+        isSeller() &&
+        request.auth.uid == sellerId &&
+        request.resource.data.kind == 'seller_reward_campaign' &&
+        request.resource.data.sellerId == sellerId &&
+        request.resource.data.status in ['active', 'paused'] &&
+        validSellerRewardCampaignType(request.resource.data.type) &&
+        request.resource.data.rewardCredits is number &&
+        request.resource.data.rewardCredits > 0 &&
+        request.resource.data.budgetCredits is number &&
+        request.resource.data.budgetCredits >= request.resource.data.rewardCredits &&
+        request.resource.data.spentCredits == 0 &&
+        request.resource.data.title is string &&
+        request.resource.data.description is string &&
+        request.resource.data.perUserLimit is number &&
+        request.resource.data.perUserLimit >= 1 &&
+        request.resource.data.createdAt is string &&
+        request.resource.data.updatedAt is string &&
+        validSellerRewardCampaignOptions();
+      allow update: if signedIn() &&
+        isSeller() &&
+        request.auth.uid == sellerId &&
+        resource.data.kind == 'seller_reward_campaign' &&
+        request.resource.data.kind == 'seller_reward_campaign' &&
+        resource.data.sellerId == sellerId &&
+        request.resource.data.sellerId == sellerId &&
+        request.resource.data.spentCredits == resource.data.spentCredits &&
+        request.resource.data.type == resource.data.type &&
+        request.resource.data.rewardCredits is number &&
+        request.resource.data.rewardCredits > 0 &&
+        request.resource.data.budgetCredits is number &&
+        request.resource.data.budgetCredits >= resource.data.spentCredits &&
+        request.resource.data.status in ['active', 'paused', 'archived'] &&
+        request.resource.data.updatedAt is string &&
+        validSellerRewardCampaignOptions();
+      allow delete: if false;
+
+      match /claims/{claimId} {
+        allow read: if signedIn() && isSeller() && request.auth.uid == sellerId;
+        allow write: if false;
+      }
+    }
+
+    match /buyerCredits/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+
+      match /ledger/{entryId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+    }
+
+    match /sellerOrders/{uid}/items/{orderId} {
+      allow read: if (isOwner(uid) && isSeller()) ||
+        (signedIn() && resource.data.buyerId == request.auth.uid);
+      allow update: if validSellerOrderUpdate(uid);
+      allow create: if signedIn() &&
+        validSellerOrderCreate(uid);
+    }
+
+    match /returnRequests/{uid}/items/{requestId} {
+      allow read: if isOwner(uid) ||
+        (signedIn() && resource.data.sellerId == request.auth.uid && isSeller());
+      allow create: if isOwner(uid) &&
+        validReturnRequestCreate(uid);
+      allow update: if validSellerReturnUpdate();
+    }
+
+    match /{path=**}/items/{orderId} {
+      allow read: if signedIn() && resource.data.buyerId == request.auth.uid;
+    }
+
+    match /orders/{uid}/items/{orderId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validBuyerOrderCreate(uid);
+      allow update, delete: if false;
+    }
+
+    match /searchEvents/{eventId} {
+      allow create: if signedIn() && validSearchEventCreate();
+      allow read, update, delete: if false;
+    }
+
+    match /tryOnJobs/{uid}/items/{jobId} {
+      allow read: if isOwner(uid);
+      allow create, update, delete: if false;
+    }
+  }
+}

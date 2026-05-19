@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+mobile/node_modules/
+functions/node_modules/
+firebase/node_modules/
+
+# Expo
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/expo-env.d.ts
+functions/lib/
+.firebase/
+
+# Native generated folders
+mobile/ios/
+mobile/android/
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Env
+.env
+mobile/.env
+functions/.env
+functions/.env.*
+
+# macOS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo

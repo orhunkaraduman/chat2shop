@@ -24,7 +24,8 @@ Kullanıcı kıyafet aramaz; tarzını, ihtiyacını ve bağlamını anlatır. A
 - [Aktif Özellikler](docs/04-aktif-ozellikler.md)
 - [Kullanıcı Akışları](docs/05-kullanici-akislari.md)
 - [MVP Kapsamı Dışında Kalan Özellikler](docs/06-mvp-kapsami-disinda.md)
-- [Demo ve Test Kılavuzu](docs/07-demo-ve-test-kilavuzu.md)
+- [Agentic Yapi](docs/07-agentic-yapi.md)
+- [Maliyet Ekonomisi](docs/08-maliyet-ekonomisi.md)
 
 ## Geliştirme
 
